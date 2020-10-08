@@ -1,0 +1,3 @@
+[submodule "bvh-loader"]
+	path = bvh-loader
+	url = https://github.com/th-snu/bvh-loader
