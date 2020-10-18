@@ -29,19 +29,22 @@ void Simulation::initialize(){
 vector<string> Simulation::splitString(string str){
     vector<string> result; 
     istringstream iss(str); 
-    for(std::string s; iss >> s; ) 
+    for(string s; iss >> s; ) 
         result.push_back(s);
     return result;
 }
 
-static std::vector<std::vector<Segment *>> getEndSites(Segment * root){
+void Simulation::getJoints(){
 	/*
 		Get the list of endsites with the list of corresponding joints connected to it.
 		BVHReader object will have control of Segment objects, ignore memory usage
 	*/
-	std::vector<std::vector<Segment *>> endSites;
-    std::vector<std::pair<Segment *, int>> segQ;
-	segQ.push_back(std::pair<Segment *, int>(root, 0));
+	Segment * root = bvh->getRoot();
+	flexibility = map<string, double>();
+	endSites = vector<vector<Segment *>>();
+
+    vector<pair<Segment *, int>> segQ;
+	segQ.push_back(pair<Segment *, int>(root, 0));
 
     while(segQ.size() > 0){
         auto pr = segQ.back();
@@ -51,24 +54,70 @@ static std::vector<std::vector<Segment *>> getEndSites(Segment * root){
 
 		/* End Site case */
 		if (curr->numSub() == 0){
-			std::vector<Segment *> endPath;
+			vector<Segment *> endPath;
 			for (auto joint : segQ){
 				endPath.push_back(joint.first);
 			}
 			endPath.push_back(curr);
 			endSites.push_back(endPath);
 
+			flexibility.insert(make_pair(curr->getName(), 1.0));
+
 			continue;
 		}
 
         int segs = curr->numSub();
         if (segCount < segs){
-            segQ.push_back(std::pair<Segment *, int>(curr, segCount + 1));
-			segQ.push_back(std::pair<Segment *, int>(curr->getSeg(segCount), 0));
+            segQ.push_back(pair<Segment *, int>(curr, segCount + 1));
+			segQ.push_back(pair<Segment *, int>(curr->getSeg(segCount), 0));
         }
+		else{
+			flexibility.insert(make_pair(curr->getName(), 1.0));
+		}
     }
 
-	return endSites;
+	return;
+}
+
+void Simulation::jointOptions(string line){
+	int spacepos = line.find(' ');
+	string cmd = line.substr(0, spacepos);
+	string args = line.substr(spacepos + 1, line.length() - spacepos - 1);
+
+	if (cmd == "list"){
+		if (args == "curr"){
+			for (int i = 0; i < endSites[currEndSite].size(); i++){
+				string name = endSites[currEndSite][i]->getName();
+				cout << name << ", " << flexibility[name] << endl;
+			}
+		}
+		else{
+			for (pair<string, double> flex : flexibility){
+				cout << flex.first << ", " << flex.second << endl;
+			}
+		}
+	}
+	else if (cmd == "flex"){
+		int spacepos = args.find(' ');
+		string jointName = args.substr(0, spacepos);
+		if (flexibility.count(jointName)){
+			try {
+				flexibility[jointName] = stod(args.substr(spacepos));
+			}
+			catch (exception &e){
+				cout << "Could not parse flexibility value." << endl;
+			}
+		}
+		else {
+			cout << "Joint " << jointName << " not found." << endl;
+		}
+	}
+	else {
+		cout << "joint list: " << "List selected joints." << endl;
+		cout << "joint flex (j) (v): " << "Set flexibility of joint (j) to (v)." << endl;
+	}
+
+	return;
 }
 
 void Simulation::activateConsole(){
@@ -89,6 +138,9 @@ void Simulation::activateConsole(){
         if (cmd == "read"){
             readFile(args);
         }
+		else if (cmd == "joint"){
+			jointOptions(args);
+		}
 		else if (cmd == "reload") reload();
         else if (cmd == "close") break;
         else if (cmd == "quit") break;
@@ -106,16 +158,16 @@ bool Simulation::readFile(string filename){
     unique_ptr<BVHReader> newBvh (new BVHReader(filename));
 
     if (!newBvh->loadFile()){
-        std::cout << "Failed to load .bvh file" << std::endl;
+        cout << "Failed to load .bvh file" << endl;
         return false;
     }
 
-    std::cout << "Loaded " << filename << " successfully" << std::endl;
+    cout << "Loaded " << filename << " successfully" << endl;
 
     bvh = move(newBvh);
 	Simulation::setCurrent(this);
 
-	endSites = getEndSites(bvh->getRoot());
+	getJoints();
 
 	return true;
 }
@@ -160,7 +212,6 @@ void Simulation::nextFrame(){
 	Eigen::VectorXd delta(6);
 	delta = leastSquareDirection(endSites[currEndSite], this->goalOrientation().cast<double>(), this->goalPosition().cast<double>());
 	for (int i = 0; i < endSites[currEndSite].size() - 1; i++){
-		cout << i << ": " << delta.block(3* i, 0, 3, 1) << endl;
 		endSites[currEndSite][i]->rotate(endSites[currEndSite][i]->getRot() + delta.block(3 * i, 0, 3, 1));
 	}
 }
@@ -203,7 +254,7 @@ void Simulation::keyboard(unsigned char key, int x, int y) {
 }
 
 void Simulation::reload(){
-    std::vector<Segment *> segQ;
+    vector<Segment *> segQ;
 	segQ.push_back(this->bvh->getRoot());
 
     while(segQ.size() > 0){
@@ -293,13 +344,13 @@ void Simulation::drawGoal() {
 	}
 	glPopMatrix();
 	/*
-	std::vector<Eigen::Vector3d> jointOriX;
-	std::vector<Eigen::Vector3d> jointOriY;
-	std::vector<Eigen::Vector3d> jointOriZ;
-	std::vector<Eigen::Vector3d> jointPos;
+	vector<Eigen::Vector3d> jointOriX;
+	vector<Eigen::Vector3d> jointOriY;
+	vector<Eigen::Vector3d> jointOriZ;
+	vector<Eigen::Vector3d> jointPos;
 
 	getGlobalPosAndOri(&endSites[currEndSite], &jointOriX, &jointOriY, &jointOriZ, &jointPos);
-	std::reverse(jointPos.begin(), jointPos.end());
+	reverse(jointPos.begin(), jointPos.end());
 	for(int i = 0; i < jointPos.size(); i++){
 		glPushMatrix();
 		{

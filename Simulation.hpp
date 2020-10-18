@@ -1,10 +1,10 @@
+#include <random>
+#include <map>
 #include "bvh-loader/BVHReader.h"
 #include "Camera.hpp"
 #include "bvh-loader/GlHelper/DrawHelper.h"
 
 using namespace std;
-
-static std::vector<std::vector<Segment *>> getEndSites(Segment * root);
 
 class Simulation {
     public:
@@ -33,12 +33,16 @@ class Simulation {
         Camera *currView;
         Segment *toMove;
 
+        map<string, double> flexibility;
         std::vector<std::vector<Segment *>> endSites;
+        void getJoints();
         int currEndSite;
+        
         void prevSite();
         void nextSite();
         void nextFrame();
         void reload();
+        void jointOptions(string args);
 
         unsigned timeStep = 30;
         bool moveObject = false;

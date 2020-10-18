@@ -92,7 +92,7 @@ Eigen::MatrixXd computeJacobian(std::vector<Segment *> const& joints, Eigen::Vec
 		oriFactor.col(3 * (joints.size() - 2) - 3 * i + 2) = jointOriZ[i];
 	}
 
-	Eigen::MatrixXd jacobian(6, 3 * joints.size() - 1);
+	Eigen::MatrixXd jacobian(6, 3 * (joints.size() - 1));
 	jacobian.block(0, 0, 3, 3 * (joints.size() - 1)) = posFactor;
 	jacobian.block(3, 0, 3, 3 * (joints.size() - 1)) = oriFactor;
 	
